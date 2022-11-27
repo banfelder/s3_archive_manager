@@ -2,3 +2,4 @@ __pycache__
 arch-mgr.cfg
 setup_env.sh
 *.json
+*-provision.sh
