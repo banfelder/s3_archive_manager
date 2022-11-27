@@ -7,3 +7,4 @@ sudo yum -y install git
 ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 git clone https://github.com/banfelder/s3_archive_manager.git
 python3 -m pip install -r s3_archive_manager/requirements.txt
+sudo shutdown -h now
