@@ -13,14 +13,21 @@ class CloudWatchLogger:
     logger.flush()
     """
     
-    def __init__(self, log_group_name, app_name, minimum_put_interval_ms = 1000.0, enable_exception_logging = False):
-        self.log_group_name = str(log_group_name)
+    def __init__(self, app_name, log_group_name = None, minimum_put_interval_ms = 1000.0, enable_exception_logging = False):
         self.app_name = str(app_name)
+
+        if log_group_name:
+            self.log_group_name = str(log_group_name)
+            self.logs = boto3.client('logs')
+            self.logs.create_log_stream(logGroupName = self.log_group_name, logStreamName = self.log_stream_name)
+        else:
+            # will just print to stdout
+            self.log_group_name = None
+            self.logs = None
+
         self.log_stream_name = time.strftime("%Y/%m/%dT%H/%M/%S", time.gmtime()) + "/" + self.app_name + "/" + str(uuid.uuid4())
         self.pending_events = []
         self.last_time_messages_sent = 0
-        self.logs = boto3.client('logs')
-        self.logs.create_log_stream(logGroupName = self.log_group_name, logStreamName = self.log_stream_name)
         self.next_sequence_token = None
         self.minimum_put_interval_ms = minimum_put_interval_ms
         self.enable_exception_logging = enable_exception_logging
@@ -45,29 +52,35 @@ class CloudWatchLogger:
         if len(self.pending_events) == 0:
             return
 
-        if self.next_sequence_token:
-            response = self.logs.put_log_events(logGroupName = self.log_group_name,
-                                                logStreamName = self.log_stream_name,
-                                                logEvents = self.pending_events,
-                                                sequenceToken = self.next_sequence_token)
+        if self.logs:
+            if self.next_sequence_token:
+                response = self.logs.put_log_events(logGroupName = self.log_group_name,
+                                                    logStreamName = self.log_stream_name,
+                                                    logEvents = self.pending_events,
+                                                    sequenceToken = self.next_sequence_token)
+            else:
+                response = self.logs.put_log_events(logGroupName = self.log_group_name,
+                                                    logStreamName = self.log_stream_name,
+                                                    logEvents = self.pending_events)
+            self.last_time_messages_sent = 1000.0 * time.time()
+            self.next_sequence_token = response["nextSequenceToken"]
         else:
-            response = self.logs.put_log_events(logGroupName = self.log_group_name,
-                                                logStreamName = self.log_stream_name,
-                                                logEvents = self.pending_events)
-        self.last_time_messages_sent = 1000.0 * time.time()
-        self.next_sequence_token = response["nextSequenceToken"]
+            for event in self.pending_events:
+                print(str(event['timestamp']) + ': ' + event['message'])
+
         self.pending_events.clear()
     
     def log(self, message, timestamp = None):
         """
         Add an event to the queue of pending events to the sent to the log stream, and then send it
         if we have not sent an event in the past minimum put interval.
+        Always print immediately if logging to stdout.
         The timestamp should be the number of seconds since the epoch in UTC. This is different
         from the AWS API, which expect the number of milliseconds since the epoch in UTC.
         If the timestamp is not provided, the current time will be used.
         """
         self.add_event(message, timestamp)
-        if (not self.last_time_messages_sent) or ((1000.0 * time.time() - self.last_time_messages_sent) > self.minimum_put_interval_ms):
+        if (not self.logs) or (not self.last_time_messages_sent) or ((1000.0 * time.time() - self.last_time_messages_sent) > self.minimum_put_interval_ms):
             self.flush()
     
     def __enter__(self):
