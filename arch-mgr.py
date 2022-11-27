@@ -7,6 +7,8 @@ import boto3
 import fire
 import tomli
 
+import cloud_watch_logger
+
 
 def transition_object_to_archive(key,
                                  expected_md5_sum = None,
@@ -147,4 +149,5 @@ if __name__ == "__main__":
     s3 = boto3.client('s3')
     configuration = get_configuration()
 
-    fire.Fire()
+    with cloud_watch_logger.CloudWatchLogger(app_name='s3_archive_manager') as logger:
+        fire.Fire()
