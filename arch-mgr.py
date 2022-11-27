@@ -10,6 +10,8 @@ import tomli
 import cloud_watch_logger
 
 
+logger = None
+
 def transition_object_to_archive(key,
                                  expected_md5_sum = None,
                                  ingest_bucket = None,
@@ -24,7 +26,7 @@ def transition_object_to_archive(key,
 
         def increment_byte_counter(self, byte_count):
             self.byte_counter += byte_count
-            print(str(self.byte_counter) + " bytes copied so far.")
+            logger.log(str(self.byte_counter) + " bytes copied so far.")
 
         def reset(self):
             self.byte_counter = 0
@@ -43,22 +45,22 @@ def transition_object_to_archive(key,
     if remove_from_ingest_bucket is None:
         raise ValueError('remove_from_ingest_bucket not specified')
 
-    print(">> copy_object_to_archive START")
+    logger.log("Entering transition_object_to_archive")
 
-    print("KEY: " + key)
-    print("INGEST_BUCKET: " + ingest_bucket)
-    print("ARCHIVE_BUCKET: " + archive_bucket)
-    print("ARCHIVE_STORAGE_CLASS: " + archive_storage_class)
-    print("REMOVE_FROM_INGEST_BUCKET: " + str(remove_from_ingest_bucket))
+    logger.log("KEY: " + key)
+    logger.log("INGEST_BUCKET: " + ingest_bucket)
+    logger.log("ARCHIVE_BUCKET: " + archive_bucket)
+    logger.log("ARCHIVE_STORAGE_CLASS: " + archive_storage_class)
+    logger.log("REMOVE_FROM_INGEST_BUCKET: " + str(remove_from_ingest_bucket))
 
     if not expected_md5_sum:
-        print("CHECKING ingested object metadata for md5sum")
+        logger.log("Checking ingested object metadata for md5sum")
         metadata = s3.head_object(Bucket=ingest_bucket, Key=key)['Metadata']
         if 'md5sum' in metadata:
             expected_md5_sum = metadata['md5sum']
     
     if expected_md5_sum:
-        print("EXPECTED_MD5_SUM: " + expected_md5_sum)
+        logger.log("EXPECTED_MD5_SUM: " + expected_md5_sum)
     else:
         raise ValueError('expected_md5_sum not specified (must be specified or read from ingest object metadata)')    
 
@@ -66,7 +68,7 @@ def transition_object_to_archive(key,
     if hexdigest != expected_md5_sum:
         raise ValueError('object does not have expected md5 checksum')
 
-    print("BEGIN copy to archive bucket")
+    logger.log("Starting copy to archive bucket")
     copy_callback_manager = CopyCallbackManager()
     s3.copy({'Bucket': ingest_bucket, 'Key': key},
             archive_bucket, key,
@@ -75,19 +77,19 @@ def transition_object_to_archive(key,
                          'StorageClass': archive_storage_class},
             Callback = lambda byte_count: copy_callback_manager.increment_byte_counter(byte_count) 
             )
-    print("END copy to archive bucket")
+    logger.log("Ending copy to archive bucket")
 
     if remove_from_ingest_bucket:
-        print("BEGIN remove from ingest bucket")
+        logger.log("Starting remove from ingest bucket")
         s3.delete_object(Bucket=ingest_bucket, Key=key)
-        print("END remove from ingest bucket")
+        logger.log("Ending remove from ingest bucket")
 
-    print(">> copy_object_to_archive DONE")
+    logger.log("Exiting transition_object_to_archive")
 
 def compute_object_md5_sum(key = None,
                            bucket = None):
 
-    print(">> compute_object_md5_sum START")
+    logger.log("Entering compute_object_md5_sum START")
 
     bucket = bucket or configuration['ingest_bucket']
 
@@ -97,10 +99,10 @@ def compute_object_md5_sum(key = None,
         raise ValueError('key not specified')
 
     chunk_size = 8 * 1024 * 1024  # 8 MByte
-    print("CHUNKSIZE: " + str(chunk_size / 1024 / 1024) + " MB")
+    logger.log("CHUNKSIZE: " + str(chunk_size / 1024 / 1024) + " MB")
 
-    print("BUCKET: " + bucket)
-    print("KEY: " + key)
+    logger.log("BUCKET: " + bucket)
+    logger.log("KEY: " + key)
 
     body = s3.get_object(Bucket=bucket, Key=key)['Body']
 
@@ -111,13 +113,13 @@ def compute_object_md5_sum(key = None,
         object_hash.update(chunk)
         chunk_count += 1
         if chunk_count % 100 == 0:
-            print("CHUNK " + str(chunk_count) + " PROCESSED")
+            logger.log("CHUNK " + str(chunk_count) + " PROCESSED")
     hexdigest = object_hash.hexdigest()
 
-    print("CHUNK_COUNT: " + str(chunk_count))
-    print("MD5: " + hexdigest)
+    logger.log("CHUNK_COUNT: " + str(chunk_count))
+    logger.log("MD5: " + hexdigest)
 
-    print(">> compute_object_md5_sum DONE")
+    logger.log("Exiting compute_object_md5_sum DONE")
 
     return(hexdigest)
 
@@ -149,5 +151,6 @@ if __name__ == "__main__":
     s3 = boto3.client('s3')
     configuration = get_configuration()
 
-    with cloud_watch_logger.CloudWatchLogger(app_name='s3_archive_manager') as logger:
+    with cloud_watch_logger.CloudWatchLogger(app_name='s3_archive_manager', enable_exception_logging = True) as l:
+        logger = l
         fire.Fire()
