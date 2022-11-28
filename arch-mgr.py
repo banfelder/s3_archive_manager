@@ -151,6 +151,15 @@ if __name__ == "__main__":
     s3 = boto3.client('s3')
     configuration = get_configuration()
 
-    with cloud_watch_logger.CloudWatchLogger(app_name='s3_archive_manager', enable_exception_logging = True) as l:
+    aws_region = None
+    cloudwatch_log_group = None
+    if ("cloudwatch_log_group" in configuration) and ("aws_region" in configuration):
+        cloudwatch_log_group = configuration['cloudwatch_log_group']
+        aws_region = configuration['aws_region']
+
+    with cloud_watch_logger.CloudWatchLogger(log_group_name=cloudwatch_log_group,
+                                             region=aws_region,
+                                             app_name='s3_archive_manager',
+                                             enable_exception_logging = True) as l:
         logger = l
         fire.Fire()

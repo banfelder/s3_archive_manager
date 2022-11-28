@@ -13,24 +13,24 @@ class CloudWatchLogger:
     logger.flush()
     """
     
-    def __init__(self, app_name, log_group_name = None, minimum_put_interval_ms = 1000.0, enable_exception_logging = False):
+    def __init__(self, app_name, region, log_group_name = None, minimum_put_interval_ms = 1000.0, enable_exception_logging = False):
+
         self.app_name = str(app_name)
-
-        if log_group_name:
-            self.log_group_name = str(log_group_name)
-            self.logs = boto3.client('logs')
-            self.logs.create_log_stream(logGroupName = self.log_group_name, logStreamName = self.log_stream_name)
-        else:
-            # will just print to stdout
-            self.log_group_name = None
-            self.logs = None
-
         self.log_stream_name = time.strftime("%Y/%m/%dT%H/%M/%S", time.gmtime()) + "/" + self.app_name + "/" + str(uuid.uuid4())
         self.pending_events = []
         self.last_time_messages_sent = 0
         self.next_sequence_token = None
         self.minimum_put_interval_ms = minimum_put_interval_ms
         self.enable_exception_logging = enable_exception_logging
+
+        if log_group_name and region:
+            self.log_group_name = str(log_group_name)
+            self.logs = boto3.client('logs', region_name = region)
+            self.logs.create_log_stream(logGroupName = self.log_group_name, logStreamName = self.log_stream_name)
+        else:
+            # will just print to stdout
+            self.log_group_name = None
+            self.logs = None
 
     def add_event(self, message, timestamp = None):
         """
