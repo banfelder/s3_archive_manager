@@ -22,7 +22,7 @@ def transition_all_objects_to_archive(ingest_bucket = None,
     logger.log("Entering transition_all_objects_to_archive")
 
     logger.log("Listing ingest bucket...")
-    response = s3.list_objects_v2(Bucket='jason-banfelder-archive-test-ingest-01')
+    response = s3.list_objects_v2(Bucket=ingest_bucket)
     if response['IsTruncated']:
         raise "Too many objects in ingest bucket"
 
