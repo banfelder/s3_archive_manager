@@ -12,6 +12,38 @@ import cloud_watch_logger
 
 logger = None
 
+def transition_all_objects_to_archive(ingest_bucket = None,
+                                      archive_bucket = None,
+                                      archive_storage_class = None,
+                                      remove_from_ingest_bucket = None):
+
+    ingest_bucket = ingest_bucket or configuration['ingest_bucket']
+
+    logger.log("Entering transition_all_objects_to_archive")
+
+    logger.log("Listing ingest bucket...")
+    response = s3.list_objects_v2(Bucket='jason-banfelder-archive-test-ingest-01')
+    if response['IsTruncated']:
+        raise "Too many objects in ingest bucket"
+
+    keys = [obj['Key'] for obj in response['Contents']]
+    logger.log(str(len(keys)) + " keys retrieved from ingest bucket")
+    for key in keys:
+        logger.log("Processing key: " + key)
+        metadata = s3.head_object(Bucket=ingest_bucket, Key=key)['Metadata']
+        if "md5sum" in metadata:
+            expected_md5_sum = metadata["md5sum"]
+            transition_object_to_archive(key=key,
+                                         expected_md5_sum=expected_md5_sum,
+                                         ingest_bucket=ingest_bucket,
+                                         archive_bucket=archive_bucket,
+                                         archive_storage_class=archive_storage_class,
+                                         remove_from_ingest_bucket=remove_from_ingest_bucket)
+        else:
+            logger.log("Skipping key " + key + " because expected md5sum is not found")
+
+    logger.log("Exiting transition_all_objects_to_archive")
+
 def transition_object_to_archive(key,
                                  expected_md5_sum = None,
                                  ingest_bucket = None,
@@ -89,7 +121,7 @@ def transition_object_to_archive(key,
 def compute_object_md5_sum(key = None,
                            bucket = None):
 
-    logger.log("Entering compute_object_md5_sum START")
+    logger.log("Entering compute_object_md5_sum")
 
     bucket = bucket or configuration['ingest_bucket']
 
@@ -119,7 +151,7 @@ def compute_object_md5_sum(key = None,
     logger.log("CHUNK_COUNT: " + str(chunk_count))
     logger.log("MD5: " + hexdigest)
 
-    logger.log("Exiting compute_object_md5_sum DONE")
+    logger.log("Exiting compute_object_md5_sum")
 
     return(hexdigest)
 
