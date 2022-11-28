@@ -213,8 +213,10 @@ Create an EC2 instance and provision it.
 The instance will shutdown itself once it is provisioned; this should take just a couple of minutes.
 You should not use the instance to transition object to archive until the provision process is completed and in the instance has stopped.
 
+You can append the option `--key-name=XXX` to the `run-instances` command if you want to be able to ssh/scp to the instance.
+
 ```bash
-aws ec2 run-instances --image-id ami-0b0dcb5067f052a63 --instance-type t2.micro --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=i-${PROJECT_NAME}},{Key=project,Value=${PROJECT_NAME}}]" --iam-instance-profile="Name=${PROJECT_NAME}-profile" --security-groups="${PROJECT_NAME}-secgrp" --user-data file://${PROJECT_NAME}-provision.sh
+aws ec2 run-instances --image-id ami-01b5ec3ed8678d8b7 --instance-type a1.medium --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=i-${PROJECT_NAME}},{Key=project,Value=${PROJECT_NAME}}]" --iam-instance-profile="Name=${PROJECT_NAME}-profile" --security-groups="${PROJECT_NAME}-secgrp" --user-data file://${PROJECT_NAME}-provision.sh
 INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=i-${PROJECT_NAME} Name=instance-state-name,Values=stopped,pending,running,shutting-down,stopping,stopped --output text --query 'Reservations[*].Instances[*].InstanceId' )
 ```
 
@@ -226,7 +228,7 @@ Upload files to the ingest bucket, including a locally computed MD5 checksums.
 
 ```bash
 FILEPATH="${HOME}/my_file.tgz"
-aws s3 cp ${FILEPATH} s3://${ARCHIVE_INGEST_BUCKET_NAME} --metadata="md5sum=$(md5sum $FILEPATH | cut -f1 -d' ')"
+aws s3 cp ${FILEPATH} s3://${ARCHIVE_INGEST_BUCKET_NAME} --metadata="md5sum=$(md5sum ${FILEPATH} | cut -f1 -d' ')"
 ```
 
 ### **Migrate Uploaded Files to Archive**
