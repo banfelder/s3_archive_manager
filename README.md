@@ -52,7 +52,7 @@ You will need to be able to create and manipulate S3 buckets, CloudWatch Logs lo
 | ARCHIVE_STORAGE_CLASS | the storage class of objects that are archived (one of STANDARD, DEEP_ARCHIVE, or other AWS S3 storage classes)
 | CLOUDWATCH_LOG_GROUP_NAME | the name of the Log Group is AWS CloudWatch where activity will be logged; it might be the same (or related to) the project name
 
-* `cp setup_env.example.sh setup_env.sh`
+* `cp setup_env-example.sh setup_env.sh`
 * Edit `setup_env.sh` for your environment.
 * `source setup_env.sh`
 
@@ -130,7 +130,7 @@ cat > ${PROJECT_NAME}-application-policy.json << EOF
             "Action": [
                 "s3:PutObject"
             ],
-            "Resource": "arn:aws:s3:::${ARCHIVE_INGEST_BUCKET_NAME}/*"
+            "Resource": "arn:aws:s3:::${ARCHIVE_BUCKET_NAME}/*"
         }
     ]
 }
@@ -225,7 +225,7 @@ INSTANCE_ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=i-${PROJ
 Upload files to the ingest bucket, including a locally computed MD5 checksums.
 
 ```bash
-FILEPATH="${HOME}/dev/work/cao_glacier/WinterGates.png"
+FILEPATH="${HOME}/my_file.tgz"
 aws s3 cp ${FILEPATH} s3://${ARCHIVE_INGEST_BUCKET_NAME} --metadata="md5sum=$(md5sum $FILEPATH | cut -f1 -d' ')"
 ```
 
@@ -235,6 +235,6 @@ Start the instance, connect to it as `ec2-user`, and run the `transition_all_obj
 Shutdown the instance when your done.
 
 ```bash
-python3 s3_archive_manager arch-mgr.py transition_all_objects_to_archive
-shutdown -h now
+python3 s3_archive_manager/arch-mgr.py transition_all_objects_to_archive
+sudo shutdown -h now
 ```
