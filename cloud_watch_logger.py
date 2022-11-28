@@ -53,6 +53,8 @@ class CloudWatchLogger:
             return
 
         if self.logs:
+            print("Sending with next_sequence_token = " + str(self.next_sequence_token))
+            self.last_time_messages_sent = 1000.0 * time.time()
             if self.next_sequence_token:
                 response = self.logs.put_log_events(logGroupName = self.log_group_name,
                                                     logStreamName = self.log_stream_name,
@@ -62,8 +64,8 @@ class CloudWatchLogger:
                 response = self.logs.put_log_events(logGroupName = self.log_group_name,
                                                     logStreamName = self.log_stream_name,
                                                     logEvents = self.pending_events)
-            self.last_time_messages_sent = 1000.0 * time.time()
             self.next_sequence_token = response["nextSequenceToken"]
+            print("Next message should be sent with sequence_token = " + str(self.next_sequence_token))
         else:
             for event in self.pending_events:
                 print(str(event['timestamp']) + ': ' + event['message'])

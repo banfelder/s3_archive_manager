@@ -54,14 +54,30 @@ def transition_object_to_archive(key,
     class CopyCallbackManager():
 
         def __init__(self):
-            self.reset()
+            self.byte_counter = 0
+            self.last_logged_byte_count = 0
 
         def increment_byte_counter(self, byte_count):
             self.byte_counter += byte_count
-            logger.log(str(self.byte_counter) + " bytes copied so far.")
+            if (self.byte_counter - self.last_logged_byte_count) >= 1024 * 1024 * 1024:
+                self.flush()
+
+        def flush(self):
+            if self.byte_counter > self.last_logged_byte_count:
+                # It seems that the copy callbacks are asynchronous and re-entrant.
+                # This can create problems with the AWS CloudWatch logger and the use of the
+                #  serially issued sequence tokens.
+                # As a workaround, we only accumulate log entries while in a copy operation,
+                #  and post them all to the logger when we are done; so use add_event() and not
+                #  log() here.
+                logger.add_event(str(self.byte_counter) + " bytes copied so far.")
+                self.last_logged_byte_count = self.byte_counter
 
         def reset(self):
+            self.flush()
             self.byte_counter = 0
+            self.last_logged_byte_count = 0
+            logger.flush()
 
     ingest_bucket = ingest_bucket or configuration['ingest_bucket']
     archive_bucket = archive_bucket or configuration['archive_bucket']
@@ -109,6 +125,7 @@ def transition_object_to_archive(key,
                          'StorageClass': archive_storage_class},
             Callback = lambda byte_count: copy_callback_manager.increment_byte_counter(byte_count) 
             )
+    copy_callback_manager.flush()
     logger.log("Ending copy to archive bucket")
 
     if remove_from_ingest_bucket:
@@ -130,7 +147,7 @@ def compute_object_md5_sum(key = None,
     if not key:
         raise ValueError('key not specified')
 
-    chunk_size = 8 * 1024 * 1024  # 8 MByte
+    chunk_size = 16 * 1024 * 1024  # 16 MByte
     logger.log("CHUNKSIZE: " + str(chunk_size / 1024 / 1024) + " MB")
 
     logger.log("BUCKET: " + bucket)
